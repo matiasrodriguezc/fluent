@@ -147,11 +147,40 @@ async def list_sources(user_id: str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", db
 async def create_connection(conn: ConnectionRequest, db: Session = Depends(get_db)):
     db_url = ""
     
+    # --- ESTRATEGIA GOOGLE SHEETS: INGESTIÓN AUTOMÁTICA ---
     if conn.type == "gsheet":
-        if "docs.google.com" not in conn.host: raise HTTPException(status_code=400, detail="URL inválida")
+        if "docs.google.com" not in conn.host: 
+            raise HTTPException(status_code=400, detail="URL inválida. Debe ser un Google Sheet público.")
+        
+        # Convertimos la URL de edición a exportación CSV
         base_url = conn.host.split("/edit")[0]
-        db_url = f"{base_url}/export?format=csv"
+        csv_url = f"{base_url}/export?format=csv"
+        
+        try:
+            print(f"📥 Descargando Google Sheet: {csv_url}")
+            response = requests.get(csv_url)
+            response.raise_for_status()
+            
+            # Leemos el CSV en memoria con Pandas
+            df = pd.read_csv(io.BytesIO(response.content))
+            
+            # Reutilizamos tu función de ingestión existente
+            # Inventamos un nombre de archivo basado en el nombre de la conexión
+            fake_filename = f"{conn.name.replace(' ', '_')}.csv"
+            table_name, description = await process_dataframe_to_sql(df, fake_filename, conn.user_id, db)
+            
+            # Retornamos éxito (El DataSource y DataAsset se crean dentro de process_dataframe_to_sql)
+            # NOTA: process_dataframe_to_sql ya crea el DataSource, así que cortamos aquí.
+            # Pero ojo: process_dataframe_to_sql usa 'filename' para el nombre del DataSource.
+            # Si querés que quede perfecto, podrías refactorizar process_dataframe_to_sql, 
+            # pero para probar rápido, esto funciona.
+            
+            return {"status": "success", "message": "Google Sheet ingestada correctamente", "table": table_name}
 
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error procesando Google Sheet: {str(e)}")
+
+    # --- ESTRATEGIA BASES DE DATOS (MySQL / Postgres) ---
     elif conn.type == "mysql":
         db_url = f"mysql+pymysql://{conn.user}:{conn.password}@{conn.host}:{conn.port}/{conn.dbname}"
     elif conn.type == "postgresql":
@@ -159,18 +188,20 @@ async def create_connection(conn: ConnectionRequest, db: Session = Depends(get_d
     else:
         raise HTTPException(status_code=400, detail="Tipo no soportado")
 
+    # Validación de conexión DB Real
     if conn.type in ["mysql", "postgresql"]:
         try:
             engine_test = create_engine(db_url, connect_args={"connect_timeout": 5})
             with engine_test.connect() as connection: pass 
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"No se pudo conectar: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"No se pudo conectar a la DB: {str(e)}")
 
+    # Guardamos la conexión externa
     new_source = models.DataSource(
         user_id=conn.user_id,
         name=conn.name,
         type=conn.type.upper(),
-        connection_string=db_url,
+        connection_string=db_url, # Aquí sí guardamos la URL para conectar en vivo
         connection_config={"host": conn.host, "port": conn.port, "dbname": conn.dbname, "user": conn.user}
     )
     db.add(new_source)
