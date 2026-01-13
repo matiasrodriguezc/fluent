@@ -62,7 +62,7 @@ class UpdateSourceRequest(BaseModel):
 
 # --- DATAFRAME A SQL ---
 async def process_dataframe_to_sql(df, filename, user_id, db):
-    # 1. Limpieza de columnas
+    # 1. Limpieza de columnas (Tu lógica original)
     df.columns = [str(c).replace('"', '').replace("'", "").strip() for c in df.columns]
     
     # 2. Normalización de nombres de columnas
@@ -78,8 +78,18 @@ async def process_dataframe_to_sql(df, filename, user_id, db):
     clean_filename = "".join(e for e in filename.split(".")[0].lower() if e.isalnum() or e == "_")
     table_name = f"u_{user_id.split('-')[0]}_{clean_filename}"
     
-    print(f"✓ Creando tabla '{table_name}' con columnas: {list(df.columns)}")
-    
+    # --- [NUEVO] PERFILADO DE DATOS (Data Profiling) ---
+    stats = {
+        "total_rows": len(df),
+        "total_columns": len(df.columns),
+        "columns_list": list(df.columns),
+        "missing_values": int(df.isnull().sum().sum()), # Total de celdas vacías
+        "memory_usage_kb": round(df.memory_usage(deep=True).sum() / 1024, 2),
+        "preview": df.head(3).to_dict(orient="records") # Pequeña muestra para UI
+    }
+    print(f"📊 [PROFILING] Tabla: '{table_name}' | Filas: {stats['total_rows']} | Nulos: {stats['missing_values']}")
+    # ---------------------------------------------------
+
     # 4. Guardar en Postgres
     df.to_sql(table_name, con=engine, if_exists='replace', index=False)
     
@@ -108,7 +118,12 @@ async def process_dataframe_to_sql(df, filename, user_id, db):
         data_source_id=ds_id, 
         name=filename, 
         description=description, 
-        asset_metadata={"sample": sample_data, "columns": list(df.columns)}, 
+        # [MODIFICADO] Guardamos los stats y el sample aquí dentro
+        asset_metadata={
+            "table_name": table_name,
+            "profiling": stats,
+            "sample": sample_data # Mantenemos el sample para el agente
+        }, 
         is_indexed=True
     )
     db.add(new_asset)
