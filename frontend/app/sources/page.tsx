@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { 
   Database, Plus, Server, Loader2, RefreshCw, FileUp, Trash2, Activity, 
-  X, CheckCircle2, AlertCircle, Pencil, FileText, HardDrive, Table, Link as LinkIcon 
+  X, CheckCircle2, AlertCircle, Pencil, FileText, HardDrive, Table, Link as LinkIcon,
+  Info // <--- 1. NUEVO IMPORT
 } from "lucide-react";
 import { UploadModal } from "@/components/upload-modal";
-import { triggerSourcesUpdate } from "@/lib/events"; // <--- IMPORTAMOS EL DISPARADOR
+import { DataProfileModal } from "@/components/data-profile-modal"; // <--- 2. NUEVO COMPONENTE
+import { triggerSourcesUpdate } from "@/lib/events";
 
 const API_URL = "http://localhost:8000";
 
@@ -15,10 +17,13 @@ export default function SourcesPage() {
   const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Modales
-  const [isModalOpen, setIsModalOpen] = useState(false);             // DB
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // CSV Local
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);   // Google Sheet (NUEVO)
+  // Modales Existentes
+  const [isModalOpen, setIsModalOpen] = useState(false);             
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); 
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);   
+
+  // 3. NUEVO ESTADO PARA EL MODAL DE PERFILADO
+  const [profileItem, setProfileItem] = useState<any>(null);
 
   // Estados Acciones
   const [pingingId, setPingingId] = useState<string | null>(null);
@@ -48,13 +53,12 @@ export default function SourcesPage() {
         await axios.delete(`${API_URL}/ingest/connection/${deleteModal.id}`);
         setConnections(prev => prev.filter(c => c.id !== deleteModal.id));
         setDeleteModal({ ...deleteModal, open: false });
-        triggerSourcesUpdate(); // <--- ACTUALIZA EL SIDEBAR AL INSTANTE
+        triggerSourcesUpdate();
     } catch (error) {
         alert("Error al eliminar");
     }
   };
 
-  // El resto de handlers (Ping, OpenModals) igual que antes...
   const handlePing = async (id: string) => {
     setPingingId(id);
     try {
@@ -78,7 +82,6 @@ export default function SourcesPage() {
           <p className="text-gray-500 mt-1">Gestiona las fuentes de verdad de tu organización.</p>
         </div>
         
-        {/* BOTONERA SUPERIOR */}
         <div className="flex gap-2">
             <button onClick={() => setIsSheetModalOpen(true)} className="flex items-center gap-2 bg-white text-green-700 border border-gray-200 hover:bg-green-50 px-4 py-2.5 rounded-xl font-medium transition-all shadow-sm">
               <Table className="w-4 h-4" /> Google Sheet
@@ -92,7 +95,6 @@ export default function SourcesPage() {
         </div>
       </div>
 
-      {/* GRID */}
       {loading ? (
         <div className="flex items-center gap-3 text-gray-400"><Loader2 className="w-5 h-5 animate-spin" /> Cargando...</div>
       ) : connections.length === 0 ? (
@@ -106,8 +108,7 @@ export default function SourcesPage() {
             const isDB = ['MYSQL', 'POSTGRESQL', 'POSTGRES'].includes(conn.type.toUpperCase());
             const isSheet = conn.type.toUpperCase() === 'GSHEET';
             
-            // Colores según tipo
-            let gradient = 'from-orange-400 to-red-500'; // Default File
+            let gradient = 'from-orange-400 to-red-500'; 
             let iconBox = 'bg-orange-50 text-orange-600';
             let Icon = FileText;
 
@@ -138,15 +139,25 @@ export default function SourcesPage() {
                     <p className="text-xs text-gray-500 font-mono truncate">{conn.type} • {isSheet ? 'Google Cloud' : conn.host}</p>
                 </div>
                 
-                <div className="pt-4 border-t border-gray-50 grid grid-cols-3 gap-2">
-                   <button onClick={() => openEditModal(conn.id, conn.name)} className="flex items-center justify-center gap-2 text-xs font-medium text-gray-600 hover:bg-gray-100 py-2 rounded-lg transition"><Pencil className="w-3.5 h-3.5" /></button>
+                {/* 4. BOTONERA ACTUALIZADA */}
+                <div className="pt-4 border-t border-gray-50 grid grid-cols-4 gap-2">
+                   {/* Botón INFO (Perfilado) */}
+                   <button 
+                     onClick={() => setProfileItem(conn)} 
+                     className="flex items-center justify-center gap-2 text-xs font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 py-2 rounded-lg transition"
+                     title="Ver Detalles"
+                   >
+                     <Info className="w-4 h-4" />
+                   </button>
+
+                   <button onClick={() => openEditModal(conn.id, conn.name)} className="flex items-center justify-center gap-2 text-xs font-medium text-gray-600 hover:bg-gray-100 py-2 rounded-lg transition" title="Editar Nombre"><Pencil className="w-3.5 h-3.5" /></button>
 
                    {isDB ? (
                      <>
-                        <button onClick={() => handlePing(conn.id)} disabled={pingingId === conn.id} className="flex items-center justify-center gap-2 text-xs font-medium text-blue-600 hover:bg-blue-50 py-2 rounded-lg transition">
+                        <button onClick={() => handlePing(conn.id)} disabled={pingingId === conn.id} className="flex items-center justify-center gap-2 text-xs font-medium text-blue-600 hover:bg-blue-50 py-2 rounded-lg transition" title="Probar Conexión">
                             {pingingId === conn.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Activity className="w-3.5 h-3.5" />}
                         </button>
-                        <button onClick={() => openDeleteConfirmation(conn.id, conn.name, "DB")} className="flex items-center justify-center gap-2 text-xs font-medium text-red-600 hover:bg-red-50 py-2 rounded-lg transition"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openDeleteConfirmation(conn.id, conn.name, "DB")} className="flex items-center justify-center gap-2 text-xs font-medium text-red-600 hover:bg-red-50 py-2 rounded-lg transition" title="Borrar"><Trash2 className="w-3.5 h-3.5" /></button>
                      </>
                    ) : (
                      <button onClick={() => openDeleteConfirmation(conn.id, conn.name, "FILE")} className="col-span-2 flex items-center justify-center gap-2 text-xs font-medium text-red-600 hover:bg-red-50 py-2 rounded-lg transition"><Trash2 className="w-3.5 h-3.5" /> Eliminar</button>
@@ -161,14 +172,15 @@ export default function SourcesPage() {
       {/* MODALES */}
       {isModalOpen && <AddConnectionModal onClose={() => setIsModalOpen(false)} onSuccess={() => { setIsModalOpen(false); fetchConnections(); triggerSourcesUpdate(); }} />}
       {isUploadModalOpen && <UploadModal onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { setIsUploadModalOpen(false); fetchConnections(); triggerSourcesUpdate(); }} />}
-      
-      {/* NUEVO MODAL GOOGLE SHEETS */}
-      {isSheetModalOpen && (
-        <AddSheetModal 
-            onClose={() => setIsSheetModalOpen(false)} 
-            onSuccess={() => { setIsSheetModalOpen(false); fetchConnections(); triggerSourcesUpdate(); }} 
-        />
-      )}
+      {isSheetModalOpen && <AddSheetModal onClose={() => setIsSheetModalOpen(false)} onSuccess={() => { setIsSheetModalOpen(false); fetchConnections(); triggerSourcesUpdate(); }} />}
+
+      {/* 5. AQUI INSERTAMOS EL MODAL DE PERFILADO */}
+      <DataProfileModal 
+        isOpen={!!profileItem} 
+        onClose={() => setProfileItem(null)} 
+        title={profileItem?.name || ''} 
+        stats={profileItem?.profiling} 
+      />
 
       {pingModal.open && <PingResultModal success={pingModal.success} message={pingModal.message} onClose={() => setPingModal({ ...pingModal, open: false })} />}
       {deleteModal.open && <DeleteConfirmModal name={deleteModal.name} type={deleteModal.type} onClose={() => setDeleteModal({ ...deleteModal, open: false })} onConfirm={confirmDelete} />}
@@ -177,92 +189,51 @@ export default function SourcesPage() {
   );
 }
 
+// ... (El resto de tus componentes: AddSheetModal, DeleteConfirmModal, EditSourceModal, etc. QUEDAN IGUAL ABAJO) ...
+// (Asegurate de copiar y pegar el bloque de componentes que ya tenías al final del archivo)
 // ==========================================
-// NUEVO COMPONENTE: MODAL GOOGLE SHEETS
+// COMPONENTES AUXILIARES (Pegar aquí lo que ya tenías abajo)
 // ==========================================
 
 function AddSheetModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
     const [formData, setFormData] = useState({ name: "Mi Hoja de Cálculo", url: "" });
     const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setStatus("loading");
+        e.preventDefault(); setStatus("loading");
         try {
-            // Reutilizamos el endpoint /connection pero mandamos type="gsheet"
-            await axios.post(`${API_URL}/ingest/connection`, {
-                name: formData.name,
-                type: "gsheet",
-                host: formData.url, // Usamos 'host' para guardar la URL
-                port: "0", user: "", password: "", dbname: "" // Relleno
-            });
+            await axios.post(`${API_URL}/ingest/connection`, { name: formData.name, type: "gsheet", host: formData.url, port: "0", user: "", password: "", dbname: "" });
             onSuccess();
-        } catch (error) {
-            console.error(error);
-            setStatus("error");
-        }
+        } catch (error) { console.error(error); setStatus("error"); }
     };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h3 className="font-bold text-gray-900">Agregar Google Sheet</h3>
-                    <button onClick={onClose}><X className="w-5 h-5 text-gray-400"/></button>
-                </div>
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"><h3 className="font-bold text-gray-900">Agregar Google Sheet</h3><button onClick={onClose}><X className="w-5 h-5 text-gray-400"/></button></div>
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {status === "error" && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">Error: Verifica que la URL sea pública.</div>}
-                    
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Nombre Referencia</label>
-                        <input className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="Ej: Ventas Q1" />
-                    </div>
-                    
-                    <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Link Público (Google Sheet)</label>
-                        <div className="relative">
-                            <LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400"/>
-                            <input 
-                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500/20" 
-                                placeholder="https://docs.google.com/spreadsheets/d/..." 
-                                value={formData.url} 
-                                onChange={e => setFormData({...formData, url: e.target.value})} 
-                                required 
-                            />
-                        </div>
-                        <p className="text-[10px] text-gray-400">Asegúrate de que esté configurado como "Cualquiera con el enlace".</p>
-                    </div>
-
-                    <button type="submit" disabled={status === "loading"} className="w-full px-4 py-2.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 rounded-xl transition flex justify-center gap-2">
-                        {status === "loading" ? <RefreshCw className="w-4 h-4 animate-spin"/> : "Agregar Hoja"}
-                    </button>
+                    <div className="space-y-1"><label className="text-xs font-medium text-gray-500 uppercase">Nombre Referencia</label><input className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required placeholder="Ej: Ventas Q1" /></div>
+                    <div className="space-y-1"><label className="text-xs font-medium text-gray-500 uppercase">Link Público</label><div className="relative"><LinkIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400"/><input className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-green-500/20" placeholder="https://docs.google.com/spreadsheets/d/..." value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} required /></div></div>
+                    <button type="submit" disabled={status === "loading"} className="w-full px-4 py-2.5 text-sm font-medium bg-green-600 text-white hover:bg-green-700 rounded-xl transition flex justify-center gap-2">{status === "loading" ? <RefreshCw className="w-4 h-4 animate-spin"/> : "Agregar Hoja"}</button>
                 </form>
             </div>
         </div>
     )
 }
 
-// ... (Resto de componentes: DeleteConfirmModal, EditSourceModal, PingResultModal, AddConnectionModal se mantienen IGUAL) ...
-// (Asegúrate de que AddConnectionModal use también triggerSourcesUpdate en su onSuccess cuando lo llames desde el componente padre)
 function DeleteConfirmModal({ name, type, onClose, onConfirm }: { name: string, type: string, onClose: () => void, onConfirm: () => void }) {
     const isDB = type === "DB";
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Trash2 className="w-7 h-7"/>
-                </div>
+                <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Trash2 className="w-7 h-7"/></div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{isDB ? "¿Desconectar Base?" : "¿Eliminar Fuente?"}</h3>
                 <p className="text-sm text-gray-500 mb-6">{isDB ? `Se perderá la conexión con "${name}".` : `¿Seguro que quieres eliminar "${name}"?`}</p>
-                <div className="flex gap-3">
-                    <button onClick={onClose} className="flex-1 bg-white border border-gray-200 text-gray-700 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition">Cancelar</button>
-                    <button onClick={onConfirm} className="flex-1 bg-red-600 text-white font-medium py-2.5 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-600/20">{isDB ? "Desconectar" : "Eliminar"}</button>
-                </div>
+                <div className="flex gap-3"><button onClick={onClose} className="flex-1 bg-white border border-gray-200 text-gray-700 font-medium py-2.5 rounded-xl hover:bg-gray-50 transition">Cancelar</button><button onClick={onConfirm} className="flex-1 bg-red-600 text-white font-medium py-2.5 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-600/20">{isDB ? "Desconectar" : "Eliminar"}</button></div>
             </div>
         </div>
     )
 }
-// ... Los otros modales (Edit, Ping, AddConnection) pegalos tal cual los tenías ...
+
 function EditSourceModal({ id, currentName, onClose, onSuccess }: { id: string, currentName: string, onClose: () => void, onSuccess: () => void }) {
     const [name, setName] = useState(currentName);
     const [loading, setLoading] = useState(false);
@@ -276,6 +247,7 @@ function EditSourceModal({ id, currentName, onClose, onSuccess }: { id: string, 
         </div>
     )
 }
+
 function PingResultModal({ success, message, onClose }: { success: boolean, message: string, onClose: () => void }) {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -288,6 +260,7 @@ function PingResultModal({ success, message, onClose }: { success: boolean, mess
         </div>
     )
 }
+
 function AddConnectionModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
     const [formData, setFormData] = useState({ name: "Tienda Online", type: "mysql", user: "root", password: "", host: "external_mysql", port: "3306", dbname: "tienda_ropa" });
     const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");

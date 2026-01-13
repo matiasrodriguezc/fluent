@@ -143,19 +143,31 @@ async def process_dataframe_to_sql(df, filename, user_id, db):
 
 @app.get("/ingest/list")
 async def list_sources(user_id: str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", db: Session = Depends(get_db)):
-    # Lista solo lo que está en DB
-    db_sources = db.query(models.DataSource).filter(models.DataSource.user_id == user_id).all()
+    # 1. Traemos las fuentes ordenadas por fecha (para ver las nuevas primero)
+    db_sources = db.query(models.DataSource).filter(models.DataSource.user_id == user_id).order_by(models.DataSource.created_at.desc()).all()
     
     response_list = []
     for s in db_sources:
+        # --- NUEVO: Buscamos la metadata del Asset asociado ---
+        asset = db.query(models.DataAsset).filter(models.DataAsset.data_source_id == s.id).first()
+        
+        # Extraemos el perfilado de forma segura (si no existe, va vacío)
+        profiling_data = {}
+        if asset and asset.asset_metadata:
+            profiling_data = asset.asset_metadata.get("profiling", {})
+        # -----------------------------------------------------
+
         response_list.append({
             "id": str(s.id),
             "name": s.name,
             "type": s.type,
             "status": "active",
             "host": s.connection_config.get("host", "File") if s.connection_config else "File",
-            "lastUpdate": "Live"
+            "lastUpdate": "Live",
+            # Agregamos el campo clave para el frontend
+            "profiling": profiling_data 
         })
+        
     return {"connections": response_list}
 
 @app.post("/ingest/connection")
