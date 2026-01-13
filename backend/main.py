@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 
 from docx import Document
 
@@ -147,12 +147,11 @@ async def list_sources(user_id: str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", db
 async def create_connection(conn: ConnectionRequest, db: Session = Depends(get_db)):
     db_url = ""
     
-    # --- ESTRATEGIA GOOGLE SHEETS: INGESTIÓN AUTOMÁTICA ---
+    # --- ESTRATEGIA GOOGLE SHEETS: INGESTIÓN AUTOMÁTICA (Sin cambios) ---
     if conn.type == "gsheet":
         if "docs.google.com" not in conn.host: 
             raise HTTPException(status_code=400, detail="URL inválida. Debe ser un Google Sheet público.")
         
-        # Convertimos la URL de edición a exportación CSV
         base_url = conn.host.split("/edit")[0]
         csv_url = f"{base_url}/export?format=csv"
         
@@ -161,19 +160,10 @@ async def create_connection(conn: ConnectionRequest, db: Session = Depends(get_d
             response = requests.get(csv_url)
             response.raise_for_status()
             
-            # Leemos el CSV en memoria con Pandas
             df = pd.read_csv(io.BytesIO(response.content))
             
-            # Reutilizamos tu función de ingestión existente
-            # Inventamos un nombre de archivo basado en el nombre de la conexión
             fake_filename = f"{conn.name.replace(' ', '_')}.csv"
             table_name, description = await process_dataframe_to_sql(df, fake_filename, conn.user_id, db)
-            
-            # Retornamos éxito (El DataSource y DataAsset se crean dentro de process_dataframe_to_sql)
-            # NOTA: process_dataframe_to_sql ya crea el DataSource, así que cortamos aquí.
-            # Pero ojo: process_dataframe_to_sql usa 'filename' para el nombre del DataSource.
-            # Si querés que quede perfecto, podrías refactorizar process_dataframe_to_sql, 
-            # pero para probar rápido, esto funciona.
             
             return {"status": "success", "message": "Google Sheet ingestada correctamente", "table": table_name}
 
@@ -188,25 +178,56 @@ async def create_connection(conn: ConnectionRequest, db: Session = Depends(get_d
     else:
         raise HTTPException(status_code=400, detail="Tipo no soportado")
 
-    # Validación de conexión DB Real
+    # Validación de conexión DB Real + INSPECCIÓN DE SCHEMA
+    schema_summary = "Sin información de esquema."
+    
     if conn.type in ["mysql", "postgresql"]:
         try:
+            # 1. Probamos conexión
             engine_test = create_engine(db_url, connect_args={"connect_timeout": 5})
-            with engine_test.connect() as connection: pass 
+            
+            # 2. ESCANEO INTELIGENTE
+            inspector = inspect(engine_test)
+            tables = inspector.get_table_names()[:50] # Limitamos a 50 tablas
+            
+            schema_parts = []
+            for table in tables:
+                columns = [col["name"] for col in inspector.get_columns(table)]
+                schema_parts.append(f"{table}({', '.join(columns)})")
+            
+            schema_summary = f"Base de datos {conn.type} externa. Contiene tablas: " + "; ".join(schema_parts)
+            print(f"✅ Esquema escaneado para router: {schema_summary[:100]}...")
+
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"No se pudo conectar a la DB: {str(e)}")
 
-    # Guardamos la conexión externa
+    # --- CORRECCIÓN CLAVE: Generación de ID explícito ---
+    source_id = uuid.uuid4() 
+
+    # Guardamos la conexión externa (DataSource) usando el ID generado
     new_source = models.DataSource(
+        id=source_id, # <--- ASIGNADO MANUALMENTE
         user_id=conn.user_id,
         name=conn.name,
         type=conn.type.upper(),
-        connection_string=db_url, # Aquí sí guardamos la URL para conectar en vivo
+        connection_string=db_url,
         connection_config={"host": conn.host, "port": conn.port, "dbname": conn.dbname, "user": conn.user}
     )
     db.add(new_source)
+    
+    # Guardamos el DataAsset vinculado a ese ID seguro
+    new_asset = models.DataAsset(
+        id=uuid.uuid4(),
+        data_source_id=source_id, # <--- USAMOS LA VARIABLE SEGURA, NO new_source.id
+        name=f"Schema de {conn.name}",
+        description=schema_summary,   # La metadata para el Router
+        asset_metadata={"tables": schema_parts if 'schema_parts' in locals() else []},
+        is_indexed=False 
+    )
+    db.add(new_asset)
+    
     db.commit()
-    return {"status": "success", "id": str(new_source.id)}
+    return {"status": "success", "id": str(source_id), "schema_preview": schema_summary[:200]}
 
 @app.put("/ingest/connection/{source_id}")
 async def update_source(source_id: str, payload: UpdateSourceRequest, db: Session = Depends(get_db)):
