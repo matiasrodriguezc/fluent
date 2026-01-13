@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import axios from "axios"
-// CAMBIO 1: Usamos AppSidebar
 import { AppSidebar } from "@/components/app-sidebar" 
 import { AiChart } from "@/components/ai-chart"
 import { LayoutDashboard, Loader2, Trash2, RefreshCw } from "lucide-react"
@@ -18,6 +17,7 @@ export default function DashboardPage() {
 
   const fetchWidgets = async () => {
     try {
+      // Ajusta tu User ID si cambia
       const res = await axios.get("http://localhost:8000/dashboard/list?user_id=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
       setWidgets(res.data.widgets)
     } catch (error) {
@@ -59,7 +59,6 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-background font-sans">
       <AppSidebar />
 
-      {/* CAMBIO 2: Agregamos ml-64 para que el sidebar fijo no tape el contenido */}
       <main className="flex-1 p-8 bg-gray-50/50 overflow-y-auto ml-64">
         <header className="mb-8 flex justify-between items-end">
             <div>
@@ -89,46 +88,47 @@ export default function DashboardPage() {
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6">
                 {widgets.map((widget) => (
-                    <div key={widget.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group">
+                    <div key={widget.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group h-full flex flex-col">
                         
-                        <div className="flex justify-between items-start mb-6">
-                            <div>
-                                <h3 className="font-bold text-gray-800 text-lg">{widget.title}</h3>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase">
-                                        {widget.chart_type}
-                                    </span>
-                                </div>
+                        {/* HEADER DE LA TARJETA RE-DISEÑADO */}
+                        <div className="flex justify-between items-start mb-4">
+                            {/* Título y Badge en la misma línea */}
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <h3 className="font-bold text-gray-800 text-lg leading-none">{widget.title}</h3>
+                                <span className="text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                    {widget.chart_type}
+                                </span>
                             </div>
                             
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Botones de acción (ocultos hasta hover) */}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity pl-2">
                                 <button 
                                     onClick={() => handleRefresh(widget.id)}
                                     disabled={refreshingId === widget.id}
-                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    title="Actualizar datos"
                                 >
                                     <RefreshCw size={16} className={refreshingId === widget.id ? "animate-spin text-blue-600" : ""} />
                                 </button>
                                 <button 
                                     onClick={() => handleDelete(widget.id)}
-                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                    title="Eliminar gráfico"
                                 >
                                     <Trash2 size={16} />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="h-64 w-full">
-                             <AiChart data={widget.data} type={widget.chart_type} />
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between items-center">
-                            <span className="text-[10px] text-gray-400 font-mono truncate max-w-[200px]">
-                                SQL: {widget.sql}
-                            </span>
-                            {refreshingId === widget.id && (
-                                <span className="text-[10px] text-blue-500 animate-pulse font-medium">Actualizando...</span>
-                            )}
+                        {/* GRÁFICO */}
+                        <div className="w-full flex-1 min-h-[300px]">
+                             {/* title="" para que AiChart no renderice su propio título interno */}
+                             <AiChart 
+                                data={widget.data} 
+                                type={widget.chart_type} 
+                                title="" 
+                                sql={widget.sql} // <--- ¡IMPORTANTE!
+                             />
                         </div>
                     </div>
                 ))}

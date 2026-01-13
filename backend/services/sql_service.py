@@ -115,8 +115,7 @@ async def run_sql_agent(question: str, user_id: str = None) -> dict:
                 "data_assets", 
                 "usage_logs",        
                 "chat_messages", 
-                "dashboard_widgets",
-                "alembic_version"   
+                "dashboard_widgets"
             ]
 
         try:
