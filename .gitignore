@@ -1,0 +1,48 @@
+# --- SISTEMA OPERATIVO & IDEs ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# --- PYTHON (Backend) ---
+__pycache__/
+*.py[cod]
+*$py.class
+# Entornos virtuales
+venv/
+env/
+.venv/
+.env
+
+# --- NODEJS / NEXT.JS (Frontend) ---
+node_modules/
+/.next/
+/out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- SEGURIDAD (CRÍTICO) ---
+# Ignorar cualquier archivo de variables de entorno con claves API
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env.local
+
+# --- DOCKER & DATA ---
+# Ignorar volúmenes de datos si se crean dentro del proyecto
+postgres_data/
+mysql_data/
+docker-data/
+
+# --- ARCHIVOS TEMPORALES / UPLOADS ---
+uploads/
+temp/
+*.log

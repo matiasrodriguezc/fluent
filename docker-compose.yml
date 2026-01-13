@@ -1,0 +1,54 @@
+services:
+  # 1. Base de Datos
+  db:
+    image: postgres:15-alpine
+    container_name: fluent_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Backend (FastAPI)
+  backend:
+    build: ./backend
+    container_name: fluent_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+  
+  # SIMULACIÓN DE DB EXTERNA (MySQL)
+  external_mysql:
+    image: mysql:8.0
+    container_name: external_mysql  # Forzamos el nombre para que sea fácil de encontrar
+    restart: always
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"  # <--- ESTO ES LA LLAVE MAESTRA
+      MYSQL_DATABASE: tienda_ropa        # Creamos la DB directo
+    ports:
+      - "3307:3306" 
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # 3. Frontend (Next.js)
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+
+volumes:
+  postgres_data:
+  mysql_data:

@@ -1,0 +1,10 @@
+
+REUNIÓN DE ARQUITECTURA - PROYECTO FLUENT
+Fecha: 10 de Enero 2026
+Asistentes: Matías, Equipo Backend.
+
+TEMAS DISCUTIDOS:
+1. El Frontend se pospone indefinidamente. Se prioriza robustez del Backend.
+2. Se definió la arquitectura de "Connectors" para bases de datos externas.
+3. El servidor de producción será migrado a AWS EC2 t3.large el próximo viernes a las 23:00hs.
+4. La contraseña maestra de la base de datos de desarrollo es: "Sup3rS3cr3t_DB!".
